@@ -36,23 +36,21 @@ class TodoRequest(BaseModel):
 
 
 @router.get("/", status_code=status.HTTP_200_OK)
-async def get_all(db: db_dependency):
-    """
-    Retrieve all todo items from the database table.
-    """
-    return db.query(Todos).all()
+async def get_all(db: db_dependency, user: user_dependency):
+    if not user:
+        raise HTTPException(status_code=401, detail='Authentication Falied')
+    return db.query(Todos).filter(Todos.id == user.get('id')).all()
+
 
 
 @router.post("/createtodo", status_code=status.HTTP_201_CREATED)
 async def create_todo(user: user_dependency,
                       db: db_dependency,
                       todo_request: TodoRequest):
-    """
-    Create a new Todo item.
-    """
     if not user:
         raise HTTPException(status_code=401, detail='authentication failed')
-    todo_model = Todos(**todo_request.model_dump(), owner_id = user['id'])
+    todo_model = Todos(**todo_request.model_dump(), \
+        owner_id = user.get('id'))
 
     db.add(todo_model)
     db.commit()
@@ -62,39 +60,24 @@ async def create_todo(user: user_dependency,
 
 
 @router.get("/getbyid/{todo_id}", status_code=status.HTTP_200_OK)
-async def get_todo(db: db_dependency, todo_id: int = Path(gt=0)):
-    """
-    Retrieve a single Todo item by its ID.
+async def get_todo(user: user_dependency,db: db_dependency, todo_id: int = Path(gt=0)):
+    todo_model = db.query(Todos).filter(Todos.id == todo_id).\
+        filter(Todos.owner_id == user.get('id')).first()
 
-    Args:
-        db (Session): Database session dependency.
-        todo_id (int): ID of the Todo item to retrieve.
-                        Must be greater than 0.
-
-    Returns:
-        Todos: The Todo object if found.
-
-    Raises:
-        HTTPException: 
-            - 404 if the Todo item does not exist.
-    """
-
-    # Query the database for the todo with the given ID
-    todo_model = db.query(Todos).filter(Todos.id == todo_id).first()
-
-    # If the todo exists, return it
     if todo_model:
         return todo_model
 
-    # If no todo is found, raise a 404 error
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Todo with ID {todo_id} does not exist"
     )
     
 @router.put("/modifytodo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def modify_todo(db: db_dependency, todo_request: TodoRequest, todo_id : int= Path(gt=0)):
-    todo_model = db.query(Todos).filter(Todos.id == todo_id).first()
+async def modify_todo(user: user_dependency, db: db_dependency, todo_request: TodoRequest, todo_id : int= Path(gt=0)):
+    if not user:
+        raise HTTPException(status_code=401, detail='authentication failed')
+    todo_model = db.query(Todos).filter(Todos.id == todo_id).\
+        filter(Todos.owner_id == user.get('id')).first()
     if not todo_model:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'todo with id {todo_id} is not found')
     todo_model.title = todo_request.title  
@@ -105,36 +88,17 @@ async def modify_todo(db: db_dependency, todo_request: TodoRequest, todo_id : in
     return 
 
 @router.delete("/deletetodo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_todo(db: db_dependency, todo_id: int = Path(gt=0)):
-    """
-    Delete a Todo item by its ID.
-
-    Args:
-        db (Session): Database session injected via dependency.
-        todo_id (int): ID of the Todo item to delete.
-                       Must be greater than 0.
-
-    Raises:
-        HTTPException:
-            - 404: If the Todo item does not exist.
-    """
-
-    # Fetch the todo item from the database
-    todo_model = db.query(Todos).filter(Todos.id == todo_id).first()
-
-    # If the todo does not exist, raise a 404 error
+async def delete_todo(user: user_dependency,db: db_dependency, todo_id: int = Path(gt=0)):
+    if not user:
+        raise HTTPException(status_code=401, detail='authentication failed')
+    todo_model = db.query(Todos).filter(Todos.id == todo_id).\
+        filter(Todos.owner_id == user.get('id')).first()
     if not todo_model:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Todo with ID {todo_id} is not found"
         )
-
-    # Delete the todo item
     db.delete(todo_model)
-
-    # Commit the transaction to persist deletion
     db.commit()
-
-    # 204 No Content → return nothing
     return
     
