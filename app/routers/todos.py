@@ -6,8 +6,12 @@ from pydantic import BaseModel, Field
 
 from ..database import SessionLocal
 from ..models import Todos
+from .auth import get_current_user
 
-router = APIRouter()
+router = APIRouter(
+    tags= ['todo'],
+    prefix='/todo'
+)
 
 def get_db():
     """
@@ -22,14 +26,13 @@ def get_db():
 
 # Type alias for cleaner dependency injection
 db_dependency = Annotated[Session, Depends(get_db)]
-
+user_dependency = Annotated[dict, Depends(get_current_user)]
 
 class TodoRequest(BaseModel):
     title: str = Field(min_length=3)
     description: str = Field(min_length=3, max_length=100)
     priority: int = Field(gt=0)
     complete: bool
-    owner_id : int
 
 
 @router.get("/", status_code=status.HTTP_200_OK)
@@ -40,13 +43,16 @@ async def get_all(db: db_dependency):
     return db.query(Todos).all()
 
 
-@router.post("/todo", status_code=status.HTTP_201_CREATED)
-async def create_todo(db: db_dependency, todo_request: TodoRequest):
+@router.post("/createtodo", status_code=status.HTTP_201_CREATED)
+async def create_todo(user: user_dependency,
+                      db: db_dependency,
+                      todo_request: TodoRequest):
     """
     Create a new Todo item.
     """
-
-    todo_model = Todos(**todo_request.model_dump())
+    if not user:
+        raise HTTPException(status_code=401, detail='authentication failed')
+    todo_model = Todos(**todo_request.model_dump(), owner_id = user['id'])
 
     db.add(todo_model)
     db.commit()
@@ -55,25 +61,7 @@ async def create_todo(db: db_dependency, todo_request: TodoRequest):
     return todo_model
 
 
-
-@router.get("/todo/{todo_id}", status_code=status.HTTP_200_OK)
-async def get_todo(db: db_dependency, todo_id: int = Path(gt=0)):
-    """
-    Retrieve a single Todo item by its ID.
-    """
-
-    todo_model = db.query(Todos).filter(Todos.id == todo_id).first()
-
-    if not todo_model:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Todo with ID {todo_id} does not exist"
-        )
-
-    return todo_model
-
-
-@router.get("/todo/{todo_id}", status_code=status.HTTP_200_OK)
+@router.get("/getbyid/{todo_id}", status_code=status.HTTP_200_OK)
 async def get_todo(db: db_dependency, todo_id: int = Path(gt=0)):
     """
     Retrieve a single Todo item by its ID.
@@ -104,7 +92,7 @@ async def get_todo(db: db_dependency, todo_id: int = Path(gt=0)):
         detail=f"Todo with ID {todo_id} does not exist"
     )
     
-@router.put("/todo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.put("/modifytodo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def modify_todo(db: db_dependency, todo_request: TodoRequest, todo_id : int= Path(gt=0)):
     todo_model = db.query(Todos).filter(Todos.id == todo_id).first()
     if not todo_model:
@@ -116,7 +104,7 @@ async def modify_todo(db: db_dependency, todo_request: TodoRequest, todo_id : in
     db.commit()
     return 
 
-@router.delete("/todo/deletetodo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/deletetodo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_todo(db: db_dependency, todo_id: int = Path(gt=0)):
     """
     Delete a Todo item by its ID.
