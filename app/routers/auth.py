@@ -7,6 +7,7 @@ from starlette import status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
+from passlib.context import CryptContext
 
 from ..database import SessionLocal
 from ..models import User
@@ -19,13 +20,10 @@ router = APIRouter(
 SECRET_KEY = "a3f9c1b7e9d24c6b8f6c0a8a9f9e3e1d7c4a5b6e7f8a9b0c1d2e3f4a5b6c7d8"
 ALGORITHM  = "HS256"
 oauth2_bearer = OAuth2PasswordBearer(tokenUrl = 'auth/token')
-
-
 bcrypt_context = CryptContext(
     schemes=['bcrypt'],
     deprecated='auto'
     )
-
 
 class CreateUserRequest(BaseModel):
     email : str
@@ -34,6 +32,7 @@ class CreateUserRequest(BaseModel):
     last_name : str
     password : str
     is_active : bool
+    role : str
 
 
 class Token(BaseModel):
@@ -41,9 +40,6 @@ class Token(BaseModel):
     token_type : str
 
 def get_db():
-    """
-    Dependency that provides a database session.
-    """
     db = SessionLocal()
     try:
         yield db
@@ -61,8 +57,8 @@ def authenticate_user(username : str, password : str, db):
         return False
     return user
 
-def create_access_token(username : str, user_id : int, expires_delta: timedelta):
-    encode = {'sub': username, 'id': user_id}
+def create_access_token(username : str, user_id : int, role: str, expires_delta: timedelta):
+    encode = {'sub': username, 'id': user_id, 'role': role}
     expires = datetime.now(timezone.utc) + expires_delta
     encode.update({'exp' : expires})
     return jwt.encode(encode, SECRET_KEY, algorithm = ALGORITHM)
@@ -72,24 +68,16 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username : str = payload.get('sub')
         user_id : int = payload.get('id')
+        user_role : str = payload.get('role')
         if not username or not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid user")
-        return {'username': username, 'id': user_id}
+        return {'username': username, 'id': user_id, 'role': user_role}
     except JWTError:
         raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid user")
-        
-        
-
-@router.get("/users", status_code=status.HTTP_200_OK)
-async def get_all_user(db: db_dependency):
-    """
-    Retrieve all users from the database table User.
-    """
-    return db.query(User).all()
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -100,7 +88,8 @@ async def create_user(db: db_dependency, create_user_request: CreateUserRequest)
         first_name = create_user_request.first_name,
         last_name = create_user_request.last_name,
         hashed_password = bcrypt_context.hash(create_user_request.password),
-        is_active = True
+        is_active = True,
+        role = create_user_request.role
         )
 
     db.add(create_user_model)
@@ -117,7 +106,7 @@ async def login_for_access_token(form_data:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid user"
                 )
-    token = create_access_token(user.username, user.id, timedelta(minutes=20))
+    token = create_access_token(user.username, user.id, user.role, timedelta(minutes=20))
     return {"access_token": token,  'token_type': "bearer"}
 
 

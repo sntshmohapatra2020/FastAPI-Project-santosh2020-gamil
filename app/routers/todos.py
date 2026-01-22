@@ -33,6 +33,7 @@ class TodoRequest(BaseModel):
     description: str = Field(min_length=3, max_length=100)
     priority: int = Field(gt=0)
     complete: bool
+    
 
 
 @router.get("/", status_code=status.HTTP_200_OK)
