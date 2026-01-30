@@ -70,7 +70,7 @@ async def get_todo(user: user_dependency,db: db_dependency, todo_id: int = Path(
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Todo with ID {todo_id} does not exist"
+        detail=f"Todo with ID does not exist"
     )
     
 @router.put("/modifytodo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
