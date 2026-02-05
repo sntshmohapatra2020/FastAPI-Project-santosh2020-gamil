@@ -80,7 +80,7 @@ async def modify_todo(user: user_dependency, db: db_dependency, todo_request: To
     todo_model = db.query(Todos).filter(Todos.id == todo_id).\
         filter(Todos.owner_id == user.get('id')).first()
     if not todo_model:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'todo with id {todo_id} is not found')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='todo with id is not found')
     todo_model.title = todo_request.title  
     todo_model.description = todo_request.description 
     todo_model.priority = todo_request.priority 
@@ -97,7 +97,7 @@ async def delete_todo(user: user_dependency,db: db_dependency, todo_id: int = Pa
     if not todo_model:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Todo with ID {todo_id} is not found"
+            detail="Todo with ID is not found"
         )
     db.delete(todo_model)
     db.commit()

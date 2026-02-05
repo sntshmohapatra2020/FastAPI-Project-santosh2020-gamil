@@ -3,7 +3,7 @@ from app.main import app
 from fastapi import status
 
 
-#client = TestClient(app)
+client = TestClient(app)
 
 
 
