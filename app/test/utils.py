@@ -7,10 +7,10 @@ import pytest
 from app.database import Base
 
 from app.main import app
-from app.models import Todos
+from app.models import Todos, User
 from app.routers.todos import get_db, get_current_user
 from .test_main import TestClient
-
+from app.routers.auth import bcrypt_context
 
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./testdb.db"
@@ -33,7 +33,7 @@ def override_get_db():
         db.close()
 
 def override_get_current_user():
-    return {'username':'santosh', 'id':1, 'user_role': 'admin'}
+    return {'username':'santosh', 'id':1, 'role': 'admin'}
 
 
 client = TestClient(app)
@@ -55,4 +55,26 @@ def test_todo():
     yield db
     with engine.connect() as connection:
         connection.execute(text("DELETE FROM todos;"))
+        connection.commit()
+
+
+@pytest.fixture
+def test_users():
+    user = User(
+            email = "santosh@gmail.com",
+            username = "santosh",
+            id = 1,
+            hashed_password = bcrypt_context.hash("testpassword"),
+            role = "admin",
+            first_name = "santosh",
+            last_name = "mohapatra",
+            is_active = True
+        )
+    db = TestingSessionLocal()
+    db.add(user)
+    db.commit()
+    yield user
+    db.close()
+    with engine.connect() as connection:
+        connection.execute(text("DELETE FROM users;"))
         connection.commit()
