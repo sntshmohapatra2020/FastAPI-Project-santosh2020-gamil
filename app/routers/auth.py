@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from passlib.context import CryptContext
 from typing import Annotated
@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
+from fastapi.templating import Jinja2Templates
 
 from ..database import SessionLocal
 from ..models import User
@@ -48,7 +49,16 @@ def get_db():
 
 # Type alias for cleaner dependency injection
 db_dependency = Annotated[Session, Depends(get_db)]
+templates = Jinja2Templates(directory="app/templates")
+###pages
+@router.get('/login-page')
+def render_login_page(request: Request):
+    return templates.TemplateResponse("login.html", {'request': request})    
+@router.get('/register-page')
+def render_register_page(request: Request):
+    return templates.TemplateResponse("register.html", {'request': request})
 
+###templates
 def authenticate_user(username : str, password : str, db):
     user = db.query(User).filter(User.username == username).first()
     if not user:
